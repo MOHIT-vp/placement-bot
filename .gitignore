@@ -8,13 +8,10 @@ __pycache__/
 htmlcov/
 .venv/
 venv/
-env/
 
 # Environment and local secrets
 .env
 .env.*
-!.env.example
-
 # Local application data
 uploads/
 *.sqlite3
