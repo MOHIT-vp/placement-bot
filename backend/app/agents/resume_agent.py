@@ -6,6 +6,7 @@ import json
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 from app.config import settings
 from app.agents.state import PlacementState, AuditEvent
@@ -44,6 +45,12 @@ class ResumeExtraction(BaseModel):
 
 
 def get_resume_llm():
+    if settings.LLM_PROVIDER.lower() == "groq":
+        return ChatGroq(
+            model=settings.LLM_MODEL,
+            temperature=0.0,
+            api_key=settings.LLM_API_KEY if settings.LLM_API_KEY else "dummy",
+        )
     return ChatGoogleGenerativeAI(
         model=settings.LLM_MODEL, 
         temperature=0.0, # ZERO temperature for extracting data perfectly without hallucinations
