@@ -74,6 +74,7 @@ class PlacementState(TypedDict):
     max_retries: int
     current_step: str
     next_node: str
+    healing_target: Optional[str]  # Lab 10: which agent to re-run during self-healing
     
     # System
     errors: Annotated[List[str], append_items]

@@ -1,21 +1,21 @@
 """
-Full Node Graph — Lab 7 Master Orchestration Graph.
+Full Node Graph — Labs 7–10 Master Orchestration Graph.
 
 This is the complete LangGraph StateGraph that wires ALL specialist agents
 into one explicit pipeline with:
 - Sequential flow: consent → resume → parallel → join → matching → interview → validation
 - Conditional edges: validation pass/fail routing
-- Self-healing back-edge: validation fail → diagnose → re-validate
+- Self-healing back-edge: validation fail → diagnose → targeted agent → re-validate  (Lab 10)
 - Escalation: retry budget exhaustion → assemble with warnings
 - Budget enforcement at every node transition
 
 Architecture:
     START → plan_workflow → lock_plan → consent_validation → resume_agent
-        → skill_gap_agent → join_parallel (Lab 8 will add true parallel fan-out)
-        → coding_analytics_agent → join_parallel
-        → job_matching_agent → interview_agent → validation_agent
+        → [skill_gap_agent ‖ coding_analytics_agent]  (parallel fan-out, Lab 8)
+        → join_parallel → job_matching_agent → interview_agent → validation_agent
             ├── PASS → assemble_draft → END
-            ├── FAIL + retries left → diagnose_and_regenerate → validation_agent
+            ├── FAIL + retries left → diagnose_and_regenerate
+            │       └── → (failing agent only) → validation_agent  (Lab 10)
             └── FAIL + no retries → assemble_draft (with warnings) → END
 """
 from typing import Dict, Any
@@ -33,6 +33,11 @@ from app.agents.coding_analytics_agent import coding_analytics_agent_node
 from app.agents.job_matching_agent import job_matching_agent_node
 from app.agents.interview_agent import interview_agent_node
 from app.agents.validation_agent import validation_agent_node
+from app.agents.self_healing import (
+    diagnose_and_regenerate as _diagnose_logic,
+    regeneration_route,
+    validation_route,
+)
 from app.core.runtime import runtime
 
 logger = logging.getLogger(__name__)
@@ -121,43 +126,10 @@ def join_parallel_node(state: PlacementState) -> Dict[str, Any]:
 
 def diagnose_and_regenerate_node(state: PlacementState) -> Dict[str, Any]:
     """
-    Node: Diagnose validation failures and prepare for targeted regeneration.
-    This is the foundation for Lab 10's self-healing.
-    For Lab 7, it increments retry count and logs the diagnosis.
+    Node: Delegate to the pure-Python self-healing logic (app.agents.self_healing).
+    Reads diagnosis, picks healing target, writes it to state.
     """
-    logger.info("[DiagnoseRegenerate] Analyzing validation failures...")
-
-    retry_count = state.get("retry_count", 0) + 1
-    max_retries = state.get("max_retries", 3)
-
-    validation_report = state.get("validation_report", {})
-    diagnosis = validation_report.get("diagnosis", {})
-
-    failing_checks = state.get("failing_checks", [])
-    agents_to_regen = diagnosis.get("agents_to_regenerate", [])
-
-    audit = AuditEvent(
-        action="diagnosis_completed",
-        agent="DiagnoseRegenerate",
-        timestamp=datetime.now(timezone.utc).isoformat(),
-        details={
-            "retry_count": retry_count,
-            "max_retries": max_retries,
-            "failing_checks": failing_checks,
-            "agents_to_regenerate": agents_to_regen,
-        }
-    )
-
-    logger.info(
-        f"[DiagnoseRegenerate] Retry {retry_count}/{max_retries}, "
-        f"Failing: {failing_checks}, Targets: {agents_to_regen}"
-    )
-
-    return {
-        "retry_count": retry_count,
-        "current_step": "diagnose_and_regenerate",
-        "audit_events": [audit],
-    }
+    return _diagnose_logic(state)
 
 
 def assemble_draft_node(state: PlacementState) -> Dict[str, Any]:
@@ -272,36 +244,27 @@ def coordinator_router(state: PlacementState) -> str:
 
 def validation_router(state: PlacementState) -> str:
     """
-    Route from validation based on pass/fail and retry budget.
-
-    Returns:
-    - "pass"          → validation passed, proceed to assembly
-    - "fail_retry"    → validation failed, retries remaining, self-heal
-    - "fail_escalate" → validation failed, retries exhausted, escalate with warnings
+    Route from validation — delegates to self_healing.validation_route,
+    but also checks the governed runtime budget.
     """
-    validation_passed = state.get("validation_passed", False)
-
-    if validation_passed:
+    if state.get("validation_passed", False):
         logger.info("[Router] Validation PASSED → assemble_draft")
         return "pass"
 
-    # Check retry budget
-    retry_count = state.get("retry_count", 0)
-    max_retries = state.get("max_retries", 3)
-
-    # Also check runtime budget
+    # Check runtime budget (governed runtime check, only in graph context)
     is_safe, reason = runtime.enforce_state_budget(state)
-
     if not is_safe:
         logger.warning(f"[Router] Runtime budget exceeded: {reason} → escalating")
         return "fail_escalate"
 
-    if retry_count < max_retries:
-        logger.info(f"[Router] Validation FAILED, retry {retry_count}/{max_retries} → self-heal")
-        return "fail_retry"
-    else:
-        logger.warning(f"[Router] Validation FAILED, retries exhausted → escalating")
-        return "fail_escalate"
+    route = validation_route(state)
+    logger.info(f"[Router] Validation FAILED → {route}")
+    return route
+
+
+def regeneration_router(state: PlacementState) -> str:
+    """Route from diagnose_and_regenerate — delegates to self_healing.regeneration_route."""
+    return regeneration_route(state)
 
 
 # ---------------------------------------------------------------------------
@@ -370,13 +333,13 @@ def build_placement_graph():
     # Consent → Resume
     workflow.add_edge("consent_validation", "resume_agent")
 
-    # Resume → Skill Gap (sequential in Lab 7; Lab 8 adds true parallelism)
+    # Phase 3: Parallel agents (true parallel fan-out for Lab 8)
+    # Resume → Skill Gap AND Coding Analytics
     workflow.add_edge("resume_agent", "skill_gap_agent")
+    workflow.add_edge("resume_agent", "coding_analytics_agent")
 
-    # Skill Gap → Coding Analytics (sequential flow)
-    workflow.add_edge("skill_gap_agent", "coding_analytics_agent")
-
-    # Coding Analytics → Join
+    # Both parallel agents → Join
+    workflow.add_edge("skill_gap_agent", "join_parallel")
     workflow.add_edge("coding_analytics_agent", "join_parallel")
 
     # Join → Job Matching
@@ -399,8 +362,19 @@ def build_placement_graph():
         }
     )
 
-    # Self-healing loop: diagnose → validation
-    workflow.add_edge("diagnose_and_regenerate", "validation_agent")
+    # Self-healing loop: diagnose → targeted agent → validation
+    # Lab 10: replace fixed edge with conditional dispatch to only the failing agent
+    workflow.add_conditional_edges(
+        "diagnose_and_regenerate",
+        regeneration_router,
+        {
+            "skill_gap_agent": "skill_gap_agent",
+            "coding_analytics_agent": "coding_analytics_agent",
+            "job_matching_agent": "job_matching_agent",
+            "interview_agent": "interview_agent",
+            "validation_agent": "validation_agent",
+        }
+    )
 
     # Assembly → END
     workflow.add_edge("assemble_draft", END)

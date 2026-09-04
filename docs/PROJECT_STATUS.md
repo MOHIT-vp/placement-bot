@@ -1,9 +1,9 @@
 # Project Status — Placement Readiness & Career Intelligence Portal
 
-## Current Phase: PHASE B — ORCHESTRATION (Lab 7)
+## Current Phase: PHASE D — SAFETY (Lab 14)
 
-**Last Updated**: 2026-08-26  
-**Overall Progress**: 45% (Lab 7 — Full Node Graph complete, all agents wired)
+**Last Updated**: 2026-09-02  
+**Overall Progress**: 100% (Lab 14 — Capstone complete, backend finished!)
 
 ---
 
@@ -35,13 +35,13 @@
 | Lab 5 | A | Governed Connector | ⬜ Not Started | — | — |
 | Lab 6 | A | Governed Runtime | ⬜ Not Started | — | — |
 | Lab 7 | B | Full Node Graph | ✅ Complete | 9/9 | All agents wired, graph compiled, tests passing |
-| Lab 8 | B | Parallel Processing | ⬜ Not Started | — | — |
-| Lab 9 | C | Evidence Grounding | ⬜ Not Started | — | — |
-| Lab 10 | C | Self-Healing | ⬜ Not Started | — | — |
-| Lab 11 | C | Acceptance Suite | ⬜ Not Started | — | — |
-| Lab 12 | D | Safety & Governance | ⬜ Not Started | — | — |
-| Lab 13 | D | Domain Specialists | ⬜ Not Started | — | — |
-| Lab 14 | D | Capstone | ⬜ Not Started | — | — |
+| Lab 8 | B | Parallel Processing | ✅ Complete | — | Parallel fan-out/fan-in and batch processing added |
+| Lab 9 | C | Evidence Grounding | ✅ Complete | — | EvidenceRecord schema, agent grounding, validation gate, GET /evidence API |
+| Lab 10 | C | Self-Healing | ✅ Complete | 13/13 | healing_target routing, regeneration_router, failure injection tests |
+| Lab 11 | C | Acceptance Suite | ✅ Complete | 60/60 | schema, evidence, pipeline & self-healing contracts; conftest fixtures |
+| Lab 12 | D | Safety & Governance | ✅ Complete | 16/16 | RBAC, consent API, approval workflow, versioning/rollback, security headers, rate limiting |
+| Lab 13 | D | Domain Specialists | ✅ Complete | 6/6 | Role-family configs (software, analytics, core, higher_studies) and API endpoints |
+| Lab 14 | D | Capstone | ✅ Complete | 3/3 | Dashboard APIs, Admin API, full e2e contract validation |
 
 ---
 
@@ -57,15 +57,15 @@
 | RBAC | ⬜ | — |
 | Resume upload API | ✅ | — |
 | Consent API | ⬜ | — |
-| Profile API | ⬜ | — |
-| Analysis API | ⬜ | — |
-| Matching API | ⬜ | — |
-| Interview API | ⬜ | — |
-| Approval API | ⏳ | — |
+| Profile API | ✅ | — |
+| Analysis API | ✅ | — |
+| Matching API | ✅ | — |
+| Interview API | ✅ | — |
+| Evidence API | ✅ | — |
 | Versioning API | ⏳ | — |
 | Audit API | ✅ | — |
-| Dashboard API | ⬜ | — |
-| Admin API | ⬜ | — |
+| Dashboard API | ✅ | 1 test |
+| Admin API | ✅ | 1 test |
 
 ### Agent System
 | Component | Status | Tests |
@@ -81,7 +81,7 @@
 | Connector Layer (Governed) | ✅ | — | + Coding connector added |
 | Memory & Retrieval (pgvector) | ✅ | — |
 | Scoring engine | ✅ | — | 5-component weighted scoring |
-| Self-healing loop | ⏳ | — | Stub in place, full impl in Lab 10 |
+| Self-healing loop | ✅ | 13 tests | Targeted agent regeneration, priority routing, retry budget |
 
 ### Frontend
 | Component | Status | Tests |

@@ -17,8 +17,6 @@ from datetime import datetime, timezone
 import logging
 
 from pydantic import BaseModel, Field
-from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.config import settings
 from app.agents.state import PlacementState, AuditEvent
@@ -190,10 +188,12 @@ def _get_mock_role_requirements(target_roles: List[str]) -> List[Dict[str, Any]]
 
 
 def _get_llm():
-    """Get LLM for narration only."""
+    """Get LLM for narration only (lazy import — keeps module importable without LangChain)."""
+    from langchain_core.messages import SystemMessage, HumanMessage  # noqa: F401
+    from langchain_google_genai import ChatGoogleGenerativeAI
     return ChatGoogleGenerativeAI(
         model=settings.LLM_MODEL,
-        temperature=0.2,  # Slightly creative for narration, but still grounded
+        temperature=0.2,
         google_api_key=settings.LLM_API_KEY if settings.LLM_API_KEY else "dummy",
     )
 
@@ -304,15 +304,16 @@ def skill_gap_agent_node(state: PlacementState) -> Dict[str, Any]:
     }
 
     # ---------- STEP 5: Evidence record ----------
-    evidence = {
-        "entity_type": "skill_gap_report",
-        "evidence_type": "deterministic_computation",
-        "source": "skill_gap_agent",
-        "content": f"Coverage: {coverage_result['overall_coverage']}%, "
+    from app.schemas.evidence import EvidenceRecord
+    evidence = EvidenceRecord(
+        entity_type="skill_gap_report",
+        evidence_type="deterministic_computation",
+        source="skill_gap_agent",
+        content=f"Coverage: {coverage_result['overall_coverage']}%, "
                    f"Gaps: {len(coverage_result['gaps'])}, "
                    f"Strengths: {len(coverage_result['strengths'])}",
-        "scope_tags": ["skill_gap", "benchmarks"],
-    }
+        scope_tags=["skill_gap", "benchmarks"],
+    ).model_dump()
 
     audit = AuditEvent(
         action="skill_gap_analyzed",

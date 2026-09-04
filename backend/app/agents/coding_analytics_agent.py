@@ -18,8 +18,6 @@ import math
 import logging
 
 from pydantic import BaseModel, Field
-from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.config import settings
 from app.agents.state import PlacementState, AuditEvent
@@ -217,6 +215,8 @@ def _compute_percentile_estimate(
 
 def _get_llm():
     """Get LLM for narration only."""
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    
     return ChatGoogleGenerativeAI(
         model=settings.LLM_MODEL,
         temperature=0.3,
@@ -287,6 +287,7 @@ def coding_analytics_agent_node(state: PlacementState) -> Dict[str, Any]:
 
     # ---------- STEP 4: LLM narration ----------
     try:
+        from langchain_core.messages import SystemMessage, HumanMessage
         llm = _get_llm().with_structured_output(CodingNarration)
 
         topic_summary = [
@@ -365,16 +366,17 @@ def coding_analytics_agent_node(state: PlacementState) -> Dict[str, Any]:
     }
 
     # ---------- STEP 6: Evidence record ----------
-    evidence = {
-        "entity_type": "coding_analytics",
-        "evidence_type": "platform_aggregation",
-        "source": "coding_analytics_agent",
-        "content": f"Platform: {platform_data.get('platform')}, "
+    from app.schemas.evidence import EvidenceRecord
+    evidence = EvidenceRecord(
+        entity_type="coding_analytics",
+        evidence_type="platform_aggregation",
+        source="coding_analytics_agent",
+        content=f"Platform: {platform_data.get('platform')}, "
                    f"Total Solved: {summary_stats['total_solved']}, "
                    f"Rating: {summary_stats['contest_rating']}, "
                    f"Percentile: {percentile}%",
-        "scope_tags": ["coding", "analytics", "platform_data"],
-    }
+        scope_tags=["coding", "analytics", "platform_data"],
+    ).model_dump()
 
     audit = AuditEvent(
         action="coding_analytics_computed",

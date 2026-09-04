@@ -125,9 +125,20 @@ def resume_agent_node(state: PlacementState) -> Dict[str, Any]:
             details={"skills_extracted": len(normalized_skills), "projects": len(result.projects)}
         )
         
+        # Create Evidence Record
+        from app.schemas.evidence import EvidenceRecord
+        evidence = EvidenceRecord(
+            entity_type="student_profile",
+            evidence_type="resume_parsing",
+            source="resume_agent",
+            content=f"Parsed {len(normalized_skills)} skills, {len(result.projects)} projects, and {len(result.experiences)} experiences from resume text.",
+            scope_tags=["resume", "student_profile", "skills", "projects"]
+        ).model_dump()
+        
         return {
             "student_profile": profile_update,
             "resume_data": {"extracted_text": clean_text[:500] + "..."}, # Store snippet for UI
+            "evidence_records": [evidence],
             "audit_events": [audit],
             "current_step": "resume_agent",
             "next_node": "parallel"

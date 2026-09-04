@@ -217,9 +217,21 @@ def _check_evidence_present(state: PlacementState) -> Dict[str, Any]:
                 f"Found {len(matches)} matches but no match evidence records."
             )
 
-    # Check minimum evidence coverage
+    # Check minimum evidence coverage based on present outputs
     evidence_types = {e.get("entity_type") for e in evidence}
-    required_types = {"skill_gap_report", "coding_analytics", "company_match"}
+    required_types = set()
+    
+    if state.get("student_profile"):
+        required_types.add("student_profile")
+    if state.get("skill_gap_report"):
+        required_types.add("skill_gap_report")
+    if state.get("coding_analytics"):
+        required_types.add("coding_analytics")
+    if state.get("matching_result"):
+        required_types.add("company_match")
+    if state.get("interview_result"):
+        required_types.add("interview_preparation")
+        
     missing = required_types - evidence_types
 
     if missing:

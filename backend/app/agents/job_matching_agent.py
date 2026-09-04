@@ -23,8 +23,6 @@ from decimal import Decimal
 import logging
 
 from pydantic import BaseModel, Field
-from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.config import settings
 from app.agents.state import PlacementState, AuditEvent
@@ -421,7 +419,9 @@ def _score_single_job(
 
 
 def _get_llm():
-    """Get LLM for match reasoning only."""
+    """Get LLM for match reasoning only (lazy import)."""
+    from langchain_core.messages import SystemMessage, HumanMessage  # noqa: F401
+    from langchain_google_genai import ChatGoogleGenerativeAI
     return ChatGoogleGenerativeAI(
         model=settings.LLM_MODEL,
         temperature=0.2,
@@ -592,18 +592,19 @@ def job_matching_agent_node(state: PlacementState) -> Dict[str, Any]:
     }
 
     # ---------- STEP 8: Evidence records ----------
+    from app.schemas.evidence import EvidenceRecord
     evidence_records = []
     for m in scored_matches:
-        evidence_records.append({
-            "entity_type": "company_match",
-            "evidence_type": "deterministic_scoring",
-            "source": "job_matching_agent",
-            "content": f"Job: {m['company_name']} - {m['role_title']}, "
+        evidence_records.append(EvidenceRecord(
+            entity_type="company_match",
+            evidence_type="deterministic_scoring",
+            source="job_matching_agent",
+            content=f"Job: {m['company_name']} - {m['role_title']}, "
                        f"Score: {m['match_score']}/{m['max_score']}, "
                        f"Confidence: {m['confidence']}, "
                        f"Eligible: {m['is_eligible']}",
-            "scope_tags": ["matching", "scoring", m.get("role_family", "general")],
-        })
+            scope_tags=["matching", "scoring", m.get("role_family", "general")],
+        ).model_dump())
 
     audit = AuditEvent(
         action="job_matching_completed",

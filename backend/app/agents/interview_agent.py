@@ -396,14 +396,15 @@ def interview_agent_node(state: PlacementState) -> Dict[str, Any]:
     }
 
     # ---------- STEP 7: Evidence records ----------
-    evidence = {
-        "entity_type": "interview_preparation",
-        "evidence_type": "ai_generation",
-        "source": "interview_agent",
-        "content": f"Generated {len(questions)} questions + {len(roadmap_items)} roadmap items "
+    from app.schemas.evidence import EvidenceRecord
+    evidence = EvidenceRecord(
+        entity_type="interview_preparation",
+        evidence_type="ai_generation",
+        source="interview_agent",
+        content=f"Generated {len(questions)} questions + {len(roadmap_items)} roadmap items "
                    f"for {target_role_title}. Readiness: {readiness['percentage']}%",
-        "scope_tags": ["interview", "roadmap", "ai_generated"],
-    }
+        scope_tags=["interview", "roadmap", "ai_generated"],
+    ).model_dump()
 
     audit = AuditEvent(
         action="interview_prepared",
