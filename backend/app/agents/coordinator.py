@@ -69,12 +69,25 @@ def plan_workflow(state: PlacementState) -> Dict[str, Any]:
             "next_node": "lock_plan"
         }
     except Exception as e:
+        print(f"Planning error: {e}. Falling back to mock plan.")
+        mock_plan = ExecutionPlan(
+            goal_summary="Standard Placement Pipeline (Mock Fallback)",
+            steps=[
+                ExecutionStep(step_id="1", agent="ConsentValidation", description="Validate consent", requires_input_from=[]),
+                ExecutionStep(step_id="2", agent="ResumeAgent", description="Parse resume", requires_input_from=["1"]),
+                ExecutionStep(step_id="3", agent="SkillGapAgent", description="Skill gap analysis", requires_input_from=["2"]),
+                ExecutionStep(step_id="4", agent="CodingAnalyticsAgent", description="Coding stats", requires_input_from=["2"]),
+                ExecutionStep(step_id="5", agent="JobMatchingAgent", description="Match jobs", requires_input_from=["3", "4"]),
+                ExecutionStep(step_id="6", agent="InterviewAgent", description="Interview prep", requires_input_from=["5"]),
+                ExecutionStep(step_id="7", agent="ValidationAgent", description="Validate readiness", requires_input_from=["6"]),
+            ]
+        )
         return {
-            "errors": [f"Planning error: {str(e)}"],
+            "plan": mock_plan,
+            "errors": [f"Planning error: {str(e)} - used fallback"],
             "current_step": "plan_workflow",
-            "next_node": "end" # Early exit on planning failure
+            "next_node": "lock_plan"
         }
-        
 
 def lock_plan(state: PlacementState) -> Dict[str, Any]:
     """

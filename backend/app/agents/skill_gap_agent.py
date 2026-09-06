@@ -214,7 +214,6 @@ def skill_gap_agent_node(state: PlacementState) -> Dict[str, Any]:
     if not student_profile:
         return {
             "errors": ["SkillGapAgent: No student profile available in state."],
-            "current_step": "skill_gap_agent",
         }
 
     target_roles = state.get("target_roles", ["software_engineer"])
@@ -336,5 +335,4 @@ def skill_gap_agent_node(state: PlacementState) -> Dict[str, Any]:
         "skill_gap_report": skill_gap_report,
         "evidence_records": [evidence],
         "audit_events": [audit],
-        "current_step": "skill_gap_agent",
     }

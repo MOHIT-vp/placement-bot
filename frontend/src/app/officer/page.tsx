@@ -1,141 +1,171 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getOfficerQueue, getSystemStats } from "@/lib/api";
-import { Users, CheckCircle, XCircle, Clock, ShieldAlert, BarChart3 } from "lucide-react";
+import { getApprovalQueue, submitDecision } from "@/lib/api";
+import { Users, CheckCircle, XCircle, Clock, BarChart3, ArrowLeft, FileSearch, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { PBBadge } from "@/components/ui/pb-badge";
+import { PBButton } from "@/components/ui/pb-button";
+import { Loader } from "@/components/ui/loader";
 
 export default function OfficerDashboardPage() {
   const [queueData, setQueueData] = useState<any>(null);
   const [statsData, setStatsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [queue, stats] = await Promise.all([getOfficerQueue(), getSystemStats()]);
-        setQueueData(queue);
-        setStatsData(stats);
-      } catch (err) {
-        console.warn("Backend unavailable, loading demo data...");
-        // Fallback demo data for frontend testing
-        setTimeout(() => {
-          setQueueData({
-            officer_role: "PLACEMENT_CONVENOR",
-            pending_runs: [
-              { run_id: "RUN-101", student_id: "STU-01", submitted_at: new Date(Date.now() - 3600000).toISOString(), status: "AWAITING_REVIEW" },
-              { run_id: "RUN-102", student_id: "STU-05", submitted_at: new Date(Date.now() - 7200000).toISOString(), status: "AWAITING_REVIEW" },
-              { run_id: "RUN-103", student_id: "STU-08", submitted_at: new Date(Date.now() - 86400000).toISOString(), status: "AWAITING_REVIEW" }
-            ],
-            recent_decisions: [
-              { run_id: "RUN-099", decision: "APPROVED", decided_at: new Date().toISOString() },
-              { run_id: "RUN-098", decision: "REJECTED", decided_at: new Date(Date.now() - 500000).toISOString() }
-            ]
-          });
-          setStatsData({
-            total_runs: 145,
-            pending_reviews: 3,
-            approval_rate_percent: 88.5,
-            published_versions: 120
-          });
-          setLoading(false);
-        }, 1000);
-      }
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const loadData = async () => {
+    try {
+      const queue = await getApprovalQueue();
+      setQueueData(queue);
+      setStatsData(queue.stats);
+      setLoading(false);
+    } catch (err) {
+      console.error("Failed to load officer queue:", err);
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
+  const handleDecide = async (runId: string, decision: "approved" | "rejected") => {
+    setActionLoading(runId);
+    try {
+      await submitDecision(runId, decision);
+      await loadData();
+    } catch (err) {
+      console.error("Decision failed:", err);
+      alert("Failed to submit decision. Check console.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center dark bg-background">
-        <div className="flex flex-col items-center">
-          <div className="w-16 h-16 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
-          <p className="mt-4 text-muted-foreground animate-pulse">Loading Placement Officer Queue...</p>
+      <div className="min-h-screen flex items-center justify-center bg-ivory">
+        <div className="flex flex-col items-center gap-12 mt-10">
+          <Loader />
+          <p className="text-sm text-bronze-dark/50 font-medium">Loading officer console...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen dark bg-background p-4 md:p-8">
-      {/* Background Gradients */}
-      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
-        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-pink-500/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px]" />
-      </div>
-
-      <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
-        
-        {/* Header */}
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-white/10">
+    <div className="min-h-screen bg-ivory">
+      {/* Header */}
+      <header className="border-b border-border-subtle bg-surface/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-5 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <div className="inline-flex items-center space-x-2 bg-purple-500/10 text-purple-400 text-xs font-medium px-2.5 py-1 rounded-full mb-3 border border-purple-500/20">
-              <ShieldAlert className="w-3 h-3" />
-              <span>Officer Console</span>
+            <div className="flex items-center gap-2 mb-3">
+              <Link href="/" className="flex items-center gap-2">
+                <span className="text-2xl font-semibold text-charcoal font-stardom">NEXUS</span>
+              </Link>
+              <span className="text-bronze-dark/30 mx-1">·</span>
+              <PBBadge variant="medium">Officer Console</PBBadge>
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Review & Approval Queue</h1>
-            <p className="text-muted-foreground mt-1">Manage student readiness evaluations before publication.</p>
+            <h1 className="type-h2">Placement Intelligence</h1>
+            <p className="type-body text-bronze-dark/50 mt-1">
+              Review and publish student readiness evaluations.
+            </p>
           </div>
-          <Link href="/" className="text-sm text-blue-400 hover:text-blue-300">Back to Portal</Link>
-        </header>
+          <Link href="/" className="text-sm font-medium text-bronze-dark/60 hover:text-charcoal transition-colors flex items-center gap-1.5">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to Portal
+          </Link>
+        </div>
+      </header>
 
-        {/* System Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="glass-card flex flex-col p-5">
-            <span className="text-sm text-muted-foreground mb-1 flex items-center"><BarChart3 className="w-4 h-4 mr-2" />Total Runs</span>
-            <span className="text-3xl font-bold">{statsData.total_runs}</span>
+      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+
+        {/* ── KPI Cards ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <BarChart3 className="w-4 h-4 text-bronze-dark/40" />
+              <span className="type-micro">Total Evaluations</span>
+            </div>
+            <span className="text-3xl font-bold text-charcoal">{statsData.total_runs}</span>
           </div>
-          <div className="glass-card flex flex-col p-5 border-t-2 border-t-yellow-500/50">
-            <span className="text-sm text-muted-foreground mb-1 flex items-center"><Clock className="w-4 h-4 mr-2 text-yellow-400" />Pending Reviews</span>
-            <span className="text-3xl font-bold text-yellow-400">{statsData.pending_reviews}</span>
+          <div className="surface-card p-5 border-t-2 border-t-warning/40">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-4 h-4 text-warning" />
+              <span className="type-micro">Pending Review</span>
+            </div>
+            <span className="text-3xl font-bold text-warning">{statsData.pending_reviews}</span>
           </div>
-          <div className="glass-card flex flex-col p-5 border-t-2 border-t-green-500/50">
-            <span className="text-sm text-muted-foreground mb-1 flex items-center"><CheckCircle className="w-4 h-4 mr-2 text-green-400" />Approval Rate</span>
-            <span className="text-3xl font-bold text-green-400">{statsData.approval_rate_percent}%</span>
+          <div className="surface-card p-5 border-t-2 border-t-success/40">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="w-4 h-4 text-success" />
+              <span className="type-micro">Approval Rate</span>
+            </div>
+            <span className="text-3xl font-bold text-success">{statsData.approval_rate_percent}%</span>
           </div>
-          <div className="glass-card flex flex-col p-5">
-            <span className="text-sm text-muted-foreground mb-1 flex items-center"><Users className="w-4 h-4 mr-2" />Published</span>
-            <span className="text-3xl font-bold">{statsData.published_versions}</span>
+          <div className="surface-card p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Users className="w-4 h-4 text-bronze-dark/40" />
+              <span className="type-micro">Published</span>
+            </div>
+            <span className="text-3xl font-bold text-charcoal">{statsData.published_versions}</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-          
-          {/* Pending Queue */}
-          <div className="md:col-span-2 space-y-4">
-            <h2 className="text-xl font-semibold mb-2">Pending Evaluations</h2>
-            
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* ── Pending Queue ── */}
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="type-h3">Pending Evaluations</h2>
+
             {queueData.pending_runs.length === 0 ? (
-              <div className="glass-card text-center p-12 text-muted-foreground">
-                No pending evaluations in the queue.
+              <div className="surface-card p-12 text-center">
+                <div className="w-14 h-14 rounded-[14px] bg-surface-muted flex items-center justify-center mx-auto mb-4">
+                  <FileSearch className="w-6 h-6 text-bronze-dark/30" />
+                </div>
+                <p className="font-semibold text-charcoal mb-1">No evaluations waiting for review.</p>
+                <p className="text-sm text-bronze-dark/40">New submissions will appear here automatically.</p>
               </div>
             ) : (
-              <div className="glass-card !p-0 overflow-hidden divide-y divide-white/10">
+              <div className="surface-card divide-y divide-border-subtle">
                 {queueData.pending_runs.map((run: any) => (
-                  <div key={run.run_id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-white/5 transition-colors group">
-                    <div className="mb-4 sm:mb-0">
-                      <div className="flex items-center space-x-3 mb-1">
-                        <span className="font-semibold text-lg">{run.student_id}</span>
-                        <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/20">
-                          {run.status}
-                        </span>
+                  <div key={run.run_id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-warm/50 transition-colors">
+                    <div>
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="font-semibold text-charcoal">{run.student_id}</span>
+                        <PBBadge variant="high">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {run.status.replace("_", " ")}
+                        </PBBadge>
                       </div>
-                      <div className="text-sm text-muted-foreground flex items-center">
-                        <Clock className="w-3 h-3 mr-1" />
+                      <p className="text-xs text-bronze-dark/40 flex items-center gap-1.5">
+                        <Clock className="w-3 h-3" />
                         Submitted: {new Date(run.submitted_at).toLocaleString()}
-                      </div>
+                      </p>
                     </div>
-                    
-                    <div className="flex space-x-2">
-                      <button className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm font-medium transition-colors">
+
+                    <div className="flex gap-2">
+                      <PBButton variant="secondary" size="sm">
                         View Report
-                      </button>
-                      <button className="px-4 py-2 bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-500/30 rounded-lg text-sm font-medium transition-colors">
-                        Approve
-                      </button>
-                      <button className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 rounded-lg text-sm font-medium transition-colors">
-                        Reject
-                      </button>
+                      </PBButton>
+                      <PBButton 
+                        variant="primary" 
+                        size="sm" 
+                        className="bg-success hover:bg-success/90 text-white"
+                        onClick={() => handleDecide(run.run_id, "approved")}
+                        disabled={actionLoading === run.run_id}
+                      >
+                        {actionLoading === run.run_id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Approve"}
+                      </PBButton>
+                      <PBButton 
+                        variant="danger" 
+                        size="sm"
+                        onClick={() => handleDecide(run.run_id, "rejected")}
+                        disabled={actionLoading === run.run_id}
+                      >
+                        {actionLoading === run.run_id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Reject"}
+                      </PBButton>
                     </div>
                   </div>
                 ))}
@@ -143,32 +173,33 @@ export default function OfficerDashboardPage() {
             )}
           </div>
 
-          {/* Recent Decisions Sidebar */}
+          {/* ── Recent Decisions ── */}
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold mb-2">Recent Decisions</h2>
-            <div className="glass-card !p-0 overflow-hidden divide-y divide-white/10">
+            <h2 className="type-h3">Recent Decisions</h2>
+            <div className="surface-card divide-y divide-border-subtle">
               {queueData.recent_decisions.map((decision: any, idx: number) => (
-                <div key={idx} className="p-4 flex items-center justify-between bg-white/5">
+                <div key={idx} className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-white">{decision.run_id}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(decision.decided_at).toLocaleTimeString()}</p>
+                    <p className="text-sm font-medium text-charcoal">{decision.run_id}</p>
+                    <p className="text-xs text-bronze-dark/40">
+                      {new Date(decision.decided_at).toLocaleTimeString()}
+                    </p>
                   </div>
                   {decision.decision === "APPROVED" ? (
-                    <span className="flex items-center text-xs text-green-400 font-medium">
-                      <CheckCircle className="w-4 h-4 mr-1" /> Approved
+                    <span className="flex items-center gap-1 text-xs text-success font-semibold">
+                      <CheckCircle className="w-3.5 h-3.5" /> Approved
                     </span>
                   ) : (
-                    <span className="flex items-center text-xs text-red-400 font-medium">
-                      <XCircle className="w-4 h-4 mr-1" /> Rejected
+                    <span className="flex items-center gap-1 text-xs text-danger font-semibold">
+                      <XCircle className="w-3.5 h-3.5" /> Rejected
                     </span>
                   )}
                 </div>
               ))}
             </div>
           </div>
-
         </div>
-      </div>
+      </main>
     </div>
   );
 }

@@ -244,7 +244,6 @@ def coding_analytics_agent_node(state: PlacementState) -> Dict[str, Any]:
     if not state.get("consent_validated", False):
         return {
             "errors": ["CodingAnalyticsAgent: Consent not validated. Cannot access coding data."],
-            "current_step": "coding_analytics_agent",
         }
 
     student_id = state.get("student_id", "unknown")
@@ -399,5 +398,4 @@ def coding_analytics_agent_node(state: PlacementState) -> Dict[str, Any]:
         "coding_analytics": coding_analytics,
         "evidence_records": [evidence],
         "audit_events": [audit],
-        "current_step": "coding_analytics_agent",
     }

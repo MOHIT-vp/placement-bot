@@ -29,6 +29,7 @@ class WorkflowRun(Base):
     retry_count = Column(Integer, default=0)
     max_retries = Column(Integer, default=3)
     error_message = Column(Text, nullable=True)
+    result_snapshot = Column(JSONB, nullable=True)  # Full agent outputs after pipeline completion
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)

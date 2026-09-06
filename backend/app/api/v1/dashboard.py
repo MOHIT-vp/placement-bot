@@ -135,10 +135,10 @@ async def get_officer_queue(
     """
     Officer dashboard: pending review queue and recent approval summary.
     """
-    # Pending: completed but not yet decided
+    # Pending: pending_review status (awaiting officer decision)
     pending_result = await db.execute(
         select(WorkflowRun)
-        .where(WorkflowRun.status == "completed")
+        .where(WorkflowRun.status.in_(["pending_review", "completed"]))
         .order_by(WorkflowRun.created_at.desc())
         .limit(20)
     )
@@ -171,3 +171,147 @@ async def get_officer_queue(
             for r in pending_runs
         ],
     )
+
+
+# ---------------------------------------------------------------------------
+# Unauthenticated Student Dashboard by run_id (MVP)
+# ---------------------------------------------------------------------------
+
+@router.get("/student/{run_id}")
+async def get_student_dashboard_by_run(
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    MVP endpoint: fetch dashboard data by run_id without authentication.
+
+    - If published → returns the full Version snapshot data
+    - If pending_review → returns status only (no data)
+    - If running → returns status only
+    - If rejected → returns status only
+    """
+    import uuid as uuid_mod
+    try:
+        run_uuid = uuid_mod.UUID(run_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid run_id format.")
+
+    result = await db.execute(select(WorkflowRun).where(WorkflowRun.id == run_uuid))
+    run = result.scalar_one_or_none()
+
+    if not run:
+        raise HTTPException(status_code=404, detail="Workflow run not found.")
+
+    # If not published yet, return status only
+    if run.status not in ("published", "approved"):
+        return {
+            "status": run.status,
+            "current_step": run.current_step,
+            "has_approved_plan": False,
+            "data": None,
+        }
+
+    # Check for a published Version
+    version_result = await db.execute(
+        select(Version)
+        .where(
+            Version.workflow_run_id == run_uuid,
+            Version.status == "published",
+        )
+        .order_by(Version.version_number.desc())
+        .limit(1)
+    )
+    version = version_result.scalar_one_or_none()
+
+    if version:
+        snapshot = version.snapshot or {}
+        # Build the dashboard payload from the version snapshot
+        student_profile = snapshot.get("student_profile", {})
+        skill_gap_report = snapshot.get("skill_gap_report", {})
+        coding_analytics = snapshot.get("coding_analytics", {})
+        matching_result = snapshot.get("matching_result", {})
+        interview_result = snapshot.get("interview_result", {})
+        roadmap = snapshot.get("roadmap", {})
+        metadata = snapshot.get("metadata", {})
+
+        matches = matching_result.get("matches", [])
+
+        # Build roadmap items
+        mapped_roadmap = []
+        if isinstance(roadmap, dict) and "roadmap_items" in roadmap:
+            for i, item in enumerate(roadmap["roadmap_items"]):
+                mapped_roadmap.append({
+                    "week": item.get("week", i + 1),
+                    "skill": item.get("focus_area", "Skill"),
+                    "action": item.get("action_item", "Learn"),
+                    "resource": item.get("resource", "Online Course"),
+                    "estimated_hours": item.get("estimated_hours", 10),
+                    "priority": item.get("priority", "high"),
+                })
+        elif isinstance(roadmap, list):
+            mapped_roadmap = roadmap
+
+        # Build company matches for frontend
+        company_matches = []
+        for m in matches:
+            company_matches.append({
+                "company": m.get("company_name", "Unknown"),
+                "role": m.get("job_title", m.get("role", "Software Engineer")),
+                "match_score": m.get("match_percentage", m.get("match_score", 0)),
+                "confidence": str(m.get("confidence", 0)),
+                "package_lpa": m.get("package_lpa", 0),
+                "matched_skills": m.get("matched_skills", []),
+                "missing_skills": m.get("missing_skills", []),
+            })
+
+        placement_score = matching_result.get("readiness_score", {}).get("total", 0)
+        score_breakdown = matching_result.get("readiness_score", {})
+
+        return {
+            "status": "published",
+            "has_approved_plan": True,
+            "version_number": version.version_number,
+            "published_at": version.published_at.isoformat() if version.published_at else None,
+            "data": {
+                "student_name": student_profile.get("summary", "Student").split()[0] if student_profile.get("summary") else "Student",
+                "github_username": metadata.get("github_username"),
+                "leetcode_handle": metadata.get("leetcode_handle"),
+                "placement_score": placement_score,
+                "score_breakdown": {
+                    "skills": score_breakdown.get("skills", 0),
+                    "coding": score_breakdown.get("coding", 0),
+                    "projects": score_breakdown.get("projects", 0),
+                    "cgpa": score_breakdown.get("cgpa", 0),
+                },
+                "skill_gaps": skill_gap_report.get("gaps", []),
+                "domain_coverage": {
+                    "general": skill_gap_report.get("overall_coverage", 0),
+                },
+                "company_matches": company_matches[:12],
+                "top_companies": company_matches[:5],
+                "roadmap": mapped_roadmap,
+                "profile": {
+                    "skills": student_profile.get("skills", []),
+                    "projects": student_profile.get("projects", []),
+                    "experiences": student_profile.get("experiences", []),
+                    "education": student_profile.get("education"),
+                    "summary": student_profile.get("summary", ""),
+                },
+                "stats": {
+                    "total_skills": len(student_profile.get("skills", [])),
+                    "total_projects": len(student_profile.get("projects", [])),
+                    "total_experiences": len(student_profile.get("experiences", [])),
+                    "coding_solved": metadata.get("coding_solved", 0),
+                    "gaps_open": len(skill_gap_report.get("gaps", [])),
+                    "strong_matches": matching_result.get("eligible_count", 0),
+                },
+            },
+        }
+
+    # Approved but no version yet (edge case)
+    return {
+        "status": run.status,
+        "has_approved_plan": False,
+        "data": None,
+    }
+

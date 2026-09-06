@@ -8,7 +8,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
-from pgvector.sqlalchemy import Vector
+
 
 from app.database import Base
 
@@ -49,7 +49,7 @@ class Job(Base):
     package_lpa = Column(Numeric(6, 2), nullable=True)
     location = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
-    embedding = Column(Vector(768), nullable=True, index=True) # Assuming 768 or mapped Gemini size
+    embedding = Column(JSONB, nullable=True) # Replaced Vector with JSONB for MVP without pgvector
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
