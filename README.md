@@ -1,6 +1,6 @@
-# Placement-Bot: Intelligent Career Guidance System
+# NEXUS: Intelligent Career Guidance System
 
-Placement-Bot is a comprehensive career intelligence platform that combines deterministic data processing with cutting-edge AI to provide personalized placement readiness assessments and upskilling roadmaps.
+NEXUS is a comprehensive career intelligence platform that combines deterministic data processing with cutting-edge AI to provide personalized placement readiness assessments and upskilling roadmaps.
 
 ## Features
 
